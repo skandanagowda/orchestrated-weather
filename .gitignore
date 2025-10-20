@@ -1,0 +1,30 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+.env
+!.env.example
+.env.* 
+*.egg-info/
+
+# airflow
+logs/
+airflow.db
+airflow-webserver.pid
+airflow.cfg
+
+# docker
+*.log
+**/.DS_Store
+
+# data artifacts
+*.parquet
+*.csv
+*.json
+data/
+.tmp/
+.cache/
+
+# IDE
+.vscode/
+.idea/
