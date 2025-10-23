@@ -1,0 +1,74 @@
+version: "3.8"
+
+x-airflow-env: &airflow_env
+  AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+  AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+  AIRFLOW__CORE__DEFAULT_TIMEZONE: utc
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+  AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0 # NEW
+  AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow # NEW
+  AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/airflow/logs # NEW (default, but explicit)
+  PYTHONPATH: /opt/airflow/dags:/opt/airflow:/opt/airflow/weather
+  _PIP_ADDITIONAL_REQUIREMENTS: "-r /requirements.txt"
+  # ensures mounted files are writable by Airflow user inside the container
+  AIRFLOW_UID: ${AIRFLOW_UID:-50000} # NEW
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+
+  airflow-webserver:
+    image: apache/airflow:2.9.3
+    depends_on: [postgres, redis]
+    env_file: ../.env
+    environment:
+      <<: *airflow_env
+    volumes:
+      - ../dags:/opt/airflow/dags
+      - ../weather:/opt/airflow/weather
+      - ../airflow_requirements.txt:/requirements.txt
+      - ../data:/opt/airflow/data
+      - ../logs:/opt/airflow/logs # NEW (share logs)
+    command: bash -lc "airflow webserver" # CHANGED: don't re-init DB each start
+    ports:
+      - "8080:8080"
+
+  airflow-scheduler:
+    image: apache/airflow:2.9.3
+    depends_on: [airflow-webserver]
+    env_file: ../.env
+    environment:
+      <<: *airflow_env
+    volumes:
+      - ../dags:/opt/airflow/dags
+      - ../weather:/opt/airflow/weather
+      - ../airflow_requirements.txt:/requirements.txt
+      - ../data:/opt/airflow/data
+      - ../logs:/opt/airflow/logs # NEW
+    command: bash -lc "airflow scheduler"
+
+  airflow-worker: # NEW (Celery worker)
+    image: apache/airflow:2.9.3
+    depends_on: [airflow-webserver, redis]
+    env_file: ../.env
+    environment:
+      <<: *airflow_env
+    volumes:
+      - ../dags:/opt/airflow/dags
+      - ../weather:/opt/airflow/weather
+      - ../airflow_requirements.txt:/requirements.txt
+      - ../data:/opt/airflow/data
+      - ../logs:/opt/airflow/logs # NEW (worker writes logs here)
+    command: bash -lc "airflow celery worker"
+
+volumes:
+  pgdata:
