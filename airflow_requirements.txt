@@ -1,5 +1,7 @@
 boto3
+requests
 pandas
+psycopg2-binary
 pyarrow
 s3fs
 requests
